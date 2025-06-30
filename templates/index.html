@@ -1,3 +1,4 @@
+<!-- templates/index.html MODIFICADO -->
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -5,17 +6,16 @@
     <title>Reconhecimento Facial com Narração</title>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <style>
+        /* (o CSS pode continuar o mesmo) */
         body { font-family: sans-serif; text-align: center; background-color: #f0f0f0; }
         #container { margin-top: 20px; }
-        video { border: 3px solid #333; transform: scaleX(-1); }
+        video { border: 3px solid #333; transform: scaleX(-1); border-radius: 8px; }
         h1 { color: #333; }
         #recognized-name { 
-            margin-top: 20px; 
-            font-size: 2em; 
-            font-weight: bold; 
-            color: #007BFF;
-            min-height: 50px;
+            margin-top: 20px; font-size: 2em; font-weight: bold; color: #007BFF;
+            min-height: 50px; transition: color 0.3s;
         }
+        #recognized-name.desconhecido { color: #dc3545; }
     </style>
 </head>
 <body>
@@ -30,85 +30,77 @@
         const video = document.getElementById('video');
         const nameElement = document.getElementById('recognized-name');
 
-        let lastRecognizedName = null; // Guarda o último nome válido reconhecido
-        let isSpeakingAllowed = false;  // Flag para controlar se a narração está permitida
+        let lastRecognizedName = null;
+        let isSpeaking = false; // Flag para não tocar áudios sobrepostos
 
-        // --- 2. FUNÇÃO DE NARRAÇÃO ---
-        function speak(text) {
-            // A narração só é permitida APÓS o usuário interagir (liberando a webcam)
-            if (!isSpeakingAllowed) {
-                console.warn("Narração bloqueada. Aguardando interação do usuário.");
-                return;
-            }
+        // --- NOVA LÓGICA DE NARRAÇÃO ---
+        async function speak(text) {
+            if (isSpeaking) return; // Se já estiver falando, não faz nada
+            isSpeaking = true;
 
-            // Verifica se o navegador suporta a API
-            if ('speechSynthesis' in window) {
-                // Cancela qualquer fala anterior para evitar sobreposição
-                window.speechSynthesis.cancel(); 
+            try {
+                // Faz uma requisição POST para o nosso backend
+                const response = await fetch('/get-speech', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Erro do servidor: ${response.statusText}`);
+                }
+
+                const data = await response.json();
                 
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'pt-BR';
-                utterance.rate = 1.1; // Um pouco mais rápido
-                utterance.pitch = 1;
+                // Cria um objeto de Áudio e toca o áudio base64 recebido
+                const audio = new Audio(`data:audio/mpeg;base64,${data.audio}`);
+                audio.play();
 
-                window.speechSynthesis.speak(utterance);
-                console.log(`%c[NARRANDO]: ${text}`, 'color: blue; font-weight: bold;');
-            } else {
-                console.error('API de Síntese de Voz não é suportada por este navegador.');
+                // Quando o áudio terminar de tocar, reseta a flag
+                audio.onended = () => {
+                    isSpeaking = false;
+                };
+
+            } catch (error) {
+                console.error("Erro ao obter e tocar áudio:", error);
+                isSpeaking = false; // Reseta a flag em caso de erro
             }
         }
         
-        // --- 3. LÓGICA DE WEBSOCKETS ---
+        // --- LÓGICA DE WEBSOCKETS MODIFICADA ---
         socket.on('connect', () => console.log('✅ Conectado ao servidor!'));
         
         socket.on('response', (data) => {
             const currentName = data.name;
             nameElement.textContent = currentName;
 
-            // Lógica para decidir se deve falar:
-            // - Falar apenas se o nome for válido (não "Desconhecido").
-            // - Falar apenas se o nome for DIFERENTE do último nome válido reconhecido.
-            if (currentName !== "Desconhecido" && currentName !== lastRecognizedName) {
-                speak(currentName);
-                lastRecognizedName = currentName; // Atualiza o último nome reconhecido
-            } 
-            // Se a pessoa sair do quadro, reseta o `lastRecognizedName`
-            // Isso permite que a mesma pessoa seja anunciada novamente se ela sair e voltar.
-            else if (currentName === "Desconhecido") {
+            if (currentName === "Desconhecido") {
+                nameElement.classList.add('desconhecido');
                 lastRecognizedName = null;
+            } else {
+                nameElement.classList.remove('desconhecido');
+                // Se o nome é válido e diferente do último, manda falar
+                if (currentName !== lastRecognizedName) {
+                    speak(currentName);
+                    lastRecognizedName = currentName;
+                }
             }
         });
 
-        // --- 4. ACESSO À WEBCAM E INÍCIO DO PROCESSO ---
+        // --- ACESSO À WEBCAM E ENVIO DE FRAMES (sem mudanças) ---
         async function startWebcam() {
             try {
-                // Pede permissão para a webcam
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                 video.srcObject = stream;
-                
-                // --- PONTO CRÍTICO ---
-                // A permissão foi concedida. Isso conta como interação do usuário.
-                // Agora podemos permitir a narração.
-                isSpeakingAllowed = true;
-                console.log("✅ Webcam ativada. Narração permitida.");
                 nameElement.textContent = "Aguardando...";
-
-                // Tenta fazer uma "fala silenciosa" para "aquecer" a API em alguns navegadores
-                const utterance = new SpeechSynthesisUtterance(' ');
-                utterance.volume = 0;
-                window.speechSynthesis.speak(utterance);
                 
-                // Inicia o envio de frames para o servidor
                 setInterval(() => {
-                    if (video.readyState >= 3) { // Garante que o vídeo está pronto
-                        sendFrame();
-                    }
-                }, 800); // Intervalo de envio de frames (800ms)
+                    if (video.readyState >= 3) sendFrame();
+                }, 800);
 
             } catch (error) {
                 console.error("❌ Erro ao acessar a webcam: ", error);
                 nameElement.textContent = "Erro: Webcam não encontrada ou permissão negada.";
-                isSpeakingAllowed = false;
             }
         }
         
@@ -124,22 +116,8 @@
             socket.emit('image', data);
         }
 
-        // --- 5. INICIA TUDO ---
-        // Adiciona um listener para garantir que as vozes da API estejam carregadas
-        window.speechSynthesis.onvoiceschanged = () => {
-            console.log("Vozes da API carregadas.");
-            // Após as vozes carregarem, inicia a webcam.
-            startWebcam();
-        };
-        // Se o evento 'onvoiceschanged' não disparar (acontece em alguns navegadores),
-        // iniciamos a webcam mesmo assim após um pequeno atraso.
-        setTimeout(() => {
-            if (!isSpeakingAllowed) {
-                console.warn("Evento onvoiceschanged não disparou, iniciando a webcam manualmente.");
-                startWebcam();
-            }
-        }, 500);
-
+        // --- INICIA TUDO ---
+        startWebcam();
     </script>
 </body>
 </html>

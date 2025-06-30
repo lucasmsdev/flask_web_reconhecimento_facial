@@ -1,4 +1,6 @@
-from flask import Flask, render_template
+# app.py MODIFICADO
+
+from flask import Flask, render_template, request, jsonify # Adicione request e jsonify
 from flask_socketio import SocketIO
 import base64
 from io import BytesIO
@@ -8,27 +10,23 @@ import cv2
 import face_recognition
 import boto3
 import os
+import requests # <-- Importe a nova biblioteca
 
-# --- INÍCIO DA LÓGICA DE RECONHECIMENTO (ADAPTADA) ---
+# --- CONFIGURAÇÕES E LÓGICA DE RECONHECIMENTO (sem mudanças) ---
 
 # Coloque suas credenciais e configurações da AWS aqui
-# Em um projeto real, use variáveis de ambiente, não as coloque no código!
 AWS_ACCESS_KEY_ID = 'ASIA6ODU7GZ6G7LNWEHD'
 AWS_SECRET_ACCESS_KEY = 'JOWT1oKq5xrwVQkYoR/PCwQL8j2/7MvFQC9GB0EN'
-AWS_SESSION_TOKEN='IQoJb3JpZ2luX2VjEMP//////////wEaCXVzLXdlc3QtMiJHMEUCIQCwBzfKTS0jeT5P+JiwhBzT2NvdKEtQkRcXzmYFmseClAIgE3z6VEj/ASkWtCCBBoSGXejrHLGvF36ih7nx/8x6tC8quAIIvP//////////ARAAGgw5OTIzODI3NjA1NzIiDGaVmezjMXTAQDLkLCqMAjdswJFaEthfo3t/lWK57VO/mCr/iyNGxAtxgNwfJEnEfPHkjpCln/jAhH53WJiISLxCXgPpkxNje09Ul0wi8+5FnGofBwPrcPXiVB/V/JNb7h+d2tONnbd9Oa6G/J15tt3Ddj9r7SvDZxWgu5KF0nly7CwDdSD7ahrpWdA26Pb3AV26MWFR5W80LqjJ/rW+wNJuC9kT3Q/ujc7VUtXh+dRycT14z2vfENxR1rCl/OG5yfA1HrTo+0CleIdPWlMB77qbL9GgVyYERCC83CTqQWwCs50tvj4Z3/Yga+pTB2YuA047Ha0t/dhbPF+QcDDmErCVEzUJEYTDwuNB2A7gVWQ5rlb/eD/xFHypYVkwn9aJwwY6nQEa7C2Dudf10+cbV3moCo72XBfF5+SHsx6EsOKJzCJ/XTNipSliP/KIkt8uAsxt4mR7sBmb1f0jt8SVHMXvV60bB+T7N/GBwZXMHgguIoKCCIMwZLZaekLKvAhUUyM83Z+wNbfGM2upM3pzQqJI0Le0CTXrY6YofBqfCVtvZLQMd8aHbDTD2to5Di63PFM8NU7lwAOcHY4g3OAMwbAd'
+AWS_SESSION_TOKEN = 'IQoJb3JpZ2luX2VjEMP//////////wEaCXVzLXdlc3QtMiJHMEUCIQCwBzfKTS0jeT5P+JiwhBzT2NvdKEtQkRcXzmYFmseClAIgE3z6VEj/ASkWtCCBBoSGXejrHLGvF36ih7nx/8x6tC8quAIIvP//////////ARAAGgw5OTIzODI3NjA1NzIiDGaVmezjMXTAQDLkLCqMAjdswJFaEthfo3t/lWK57VO/mCr/iyNGxAtxgNwfJEnEfPHkjpCln/jAhH53WJiISLxCXgPpkxNje09Ul0wi8+5FnGofBwPrcPXiVB/V/JNb7h+d2tONnbd9Oa6G/J15tt3Ddj9r7SvDZxWgu5KF0nly7CwDdSD7ahrpWdA26Pb3AV26MWFR5W80LqjJ/rW+wNJuC9kT3Q/ujc7VUtXh+dRycT14z2vfENxR1rCl/OG5yfA1HrTo+0CleIdPWlMB77qbL9GgVyYERCC83CTqQWwCs50tvj4Z3/Yga+pTB2YuA047Ha0t/dhbPF+QcDDmErCVEzUJEYTDwuNB2A7gVWQ5rlb/eD/xFHypYVkwn9aJwwY6nQEa7C2Dudf10+cbV3moCo72XBfF5+SHsx6EsOKJzCJ/XTNipSliP/KIkt8uAsxt4mR7sBmb1f0jt8SVHMXvV60bB+T7N/GBwZXMHgguIoKCCIMwZLZaekLKvAhUUyM83Z+wNbfGM2upM3pzQqJI0Le0CTXrY6YofBqfCVtvZLQMd8aHbDTD2to5Di63PFM8NU7lwAOcHY4g3OAMwbAd'
 AWS_REGION = 'us-east-1'
 S3_BUCKET_NAME = 'visaocomputacional-senai'
 
-# Variáveis globais para armazenar os rostos conhecidos
 known_face_encodings = []
 known_face_names = []
 
 def load_known_faces():
-    """
-    Carrega os rostos do S3 para a memória uma vez quando o servidor inicia.
-    Esta é a sua "Célula 2" adaptada.
-    """
     global known_face_encodings, known_face_names
+    # ... (o código da função load_known_faces continua exatamente o mesmo)
     print("➡️  Carregando rostos conhecidos do S3...")
     
     try:
@@ -73,62 +71,79 @@ def load_known_faces():
     except Exception as e:
         print(f"❌ ERRO ao carregar faces do S3: {e}")
 
+
 def process_frame(image_data_url):
-    """
-    Recebe um frame do navegador, reconhece o rosto e retorna o nome.
-    Esta é a sua "Célula 3" adaptada.
-    """
-    # Decodifica a imagem de base64 para um formato que o OpenCV entende
+    # ... (o código da função process_frame continua exatamente o mesmo)
     header, encoded = image_data_url.split(",", 1)
     image_data = base64.b64decode(encoded)
     image = Image.open(BytesIO(image_data))
     frame = np.array(image)
-    
-    # Converte de RGB (PIL) para BGR (OpenCV) se necessário para alguma função
-    # Para face_recognition, RGB é o padrão, então está ok.
     rgb_frame = frame
     
-    # Encontra rostos no frame atual
-    face_locations = face_recognition.face_locations(rgb_frame, model="cnn") # 'cnn' é mais preciso mas lento
+    face_locations = face_recognition.face_locations(rgb_frame, model="hog") # 'hog' é mais rápido
     face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
 
     name = "Desconhecido"
     for face_encoding in face_encodings:
         matches = face_recognition.compare_faces(known_face_encodings, face_encoding, tolerance=0.6)
-        
         face_distances = face_recognition.face_distance(known_face_encodings, face_encoding)
         if len(face_distances) > 0:
             best_match_index = np.argmin(face_distances)
             if matches[best_match_index]:
                 name = known_face_names[best_match_index]
-                break # Para no primeiro rosto reconhecido
-    
+                break
     return name
 
-# --- FIM DA LÓGICA DE RECONHECIMENTO ---
-
-
-# --- INÍCIO DA APLICAÇÃO WEB (FLASK) ---
+# --- APLICAÇÃO WEB (FLASK) ---
 
 app = Flask(__name__)
-# Chave secreta é necessária para o SocketIO
-app.config['SECRET_KEY'] = 'um-segredo-muito-secreto!' 
+app.config['SECRET_KEY'] = 'um-segredo-muito-secreto!'
 socketio = SocketIO(app)
 
 @app.route('/')
 def index():
-    """Serve a página principal."""
     return render_template('index.html')
 
 @socketio.on('image')
 def handle_image(image_data_url):
-    """Recebe a imagem do cliente, processa e envia o resultado de volta."""
     recognized_name = process_frame(image_data_url)
-    # Emite um evento 'response' de volta para o cliente com o nome
+    # Agora, em vez de apenas enviar o nome, preparamos para a narração
     socketio.emit('response', {'name': recognized_name})
 
+### --- NOVO ENDPOINT PARA GERAR A FALA --- ###
+@app.route('/get-speech', methods=['POST'])
+def get_speech():
+    """Recebe um texto, busca o áudio no Google TTS e retorna como base64."""
+    text_to_speak = request.json.get('text')
+    if not text_to_speak:
+        return jsonify({'error': 'No text provided'}), 400
+
+    try:
+        # URL da API não-oficial do Google Translate TTS
+        url = "https://translate.google.com/translate_tts"
+        params = {
+            'ie': 'UTF-8',
+            'q': text_to_speak,
+            'tl': 'pt-BR',
+            'client': 'tw-ob' # Parâmetro necessário para a API funcionar
+        }
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36'
+        }
+        
+        response = requests.get(url, params=params, headers=headers)
+        response.raise_for_status() # Lança um erro se a requisição falhar
+        
+        # Codifica o conteúdo do áudio (bytes) em base64 (string)
+        audio_base64 = base64.b64encode(response.content).decode('utf-8')
+        
+        return jsonify({'audio': audio_base64})
+        
+    except requests.exceptions.RequestException as e:
+        print(f"Erro ao buscar áudio do Google: {e}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
-    load_known_faces() # Carrega os rostos quando o servidor inicia
+    load_known_faces()
     print("🚀 Servidor pronto! Acesse http://127.0.0.1:5000 no seu navegador.")
-    # Usa o servidor do eventlet para WebSockets
     socketio.run(app, host='0.0.0.0', port=5000)
