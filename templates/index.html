@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Reconhecimento Facial com Narração</title>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <style>
+        body { font-family: sans-serif; text-align: center; background-color: #f0f0f0; }
+        #container { margin-top: 20px; }
+        video { border: 3px solid #333; transform: scaleX(-1); }
+        h1 { color: #333; }
+        #recognized-name { 
+            margin-top: 20px; 
+            font-size: 2em; 
+            font-weight: bold; 
+            color: #007BFF;
+            min-height: 50px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Reconhecimento Facial</h1>
+    <div id="container">
+        <video id="video" width="640" height="480" autoplay playsinline></video>
+    </div>
+    <div id="recognized-name">Aguardando permissão da webcam...</div>
+
+    <script type="text/javascript">
+        const socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
+        const video = document.getElementById('video');
+        const nameElement = document.getElementById('recognized-name');
+
+        let lastRecognizedName = null; // Guarda o último nome válido reconhecido
+        let isSpeakingAllowed = false;  // Flag para controlar se a narração está permitida
+
+        // --- 2. FUNÇÃO DE NARRAÇÃO ---
+        function speak(text) {
+            // A narração só é permitida APÓS o usuário interagir (liberando a webcam)
+            if (!isSpeakingAllowed) {
+                console.warn("Narração bloqueada. Aguardando interação do usuário.");
+                return;
+            }
+
+            // Verifica se o navegador suporta a API
+            if ('speechSynthesis' in window) {
+                // Cancela qualquer fala anterior para evitar sobreposição
+                window.speechSynthesis.cancel(); 
+                
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'pt-BR';
+                utterance.rate = 1.1; // Um pouco mais rápido
+                utterance.pitch = 1;
+
+                window.speechSynthesis.speak(utterance);
+                console.log(`%c[NARRANDO]: ${text}`, 'color: blue; font-weight: bold;');
+            } else {
+                console.error('API de Síntese de Voz não é suportada por este navegador.');
+            }
+        }
+        
+        // --- 3. LÓGICA DE WEBSOCKETS ---
+        socket.on('connect', () => console.log('✅ Conectado ao servidor!'));
+        
+        socket.on('response', (data) => {
+            const currentName = data.name;
+            nameElement.textContent = currentName;
+
+            // Lógica para decidir se deve falar:
+            // - Falar apenas se o nome for válido (não "Desconhecido").
+            // - Falar apenas se o nome for DIFERENTE do último nome válido reconhecido.
+            if (currentName !== "Desconhecido" && currentName !== lastRecognizedName) {
+                speak(currentName);
+                lastRecognizedName = currentName; // Atualiza o último nome reconhecido
+            } 
+            // Se a pessoa sair do quadro, reseta o `lastRecognizedName`
+            // Isso permite que a mesma pessoa seja anunciada novamente se ela sair e voltar.
+            else if (currentName === "Desconhecido") {
+                lastRecognizedName = null;
+            }
+        });
+
+        // --- 4. ACESSO À WEBCAM E INÍCIO DO PROCESSO ---
+        async function startWebcam() {
+            try {
+                // Pede permissão para a webcam
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+                
+                // --- PONTO CRÍTICO ---
+                // A permissão foi concedida. Isso conta como interação do usuário.
+                // Agora podemos permitir a narração.
+                isSpeakingAllowed = true;
+                console.log("✅ Webcam ativada. Narração permitida.");
+                nameElement.textContent = "Aguardando...";
+
+                // Tenta fazer uma "fala silenciosa" para "aquecer" a API em alguns navegadores
+                const utterance = new SpeechSynthesisUtterance(' ');
+                utterance.volume = 0;
+                window.speechSynthesis.speak(utterance);
+                
+                // Inicia o envio de frames para o servidor
+                setInterval(() => {
+                    if (video.readyState >= 3) { // Garante que o vídeo está pronto
+                        sendFrame();
+                    }
+                }, 800); // Intervalo de envio de frames (800ms)
+
+            } catch (error) {
+                console.error("❌ Erro ao acessar a webcam: ", error);
+                nameElement.textContent = "Erro: Webcam não encontrada ou permissão negada.";
+                isSpeakingAllowed = false;
+            }
+        }
+        
+        function sendFrame() {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const context = canvas.getContext('2d');
+            context.translate(canvas.width, 0);
+            context.scale(-1, 1);
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const data = canvas.toDataURL('image/jpeg', 0.8);
+            socket.emit('image', data);
+        }
+
+        // --- 5. INICIA TUDO ---
+        // Adiciona um listener para garantir que as vozes da API estejam carregadas
+        window.speechSynthesis.onvoiceschanged = () => {
+            console.log("Vozes da API carregadas.");
+            // Após as vozes carregarem, inicia a webcam.
+            startWebcam();
+        };
+        // Se o evento 'onvoiceschanged' não disparar (acontece em alguns navegadores),
+        // iniciamos a webcam mesmo assim após um pequeno atraso.
+        setTimeout(() => {
+            if (!isSpeakingAllowed) {
+                console.warn("Evento onvoiceschanged não disparou, iniciando a webcam manualmente.");
+                startWebcam();
+            }
+        }, 500);
+
+    </script>
+</body>
+</html>
