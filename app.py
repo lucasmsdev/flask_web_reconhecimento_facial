@@ -1,6 +1,6 @@
 # app.py MODIFICADO
 
-from flask import Flask, render_template, request, jsonify # Adicione request e jsonify
+from flask import Flask, render_template, request, jsonify 
 from flask_socketio import SocketIO
 import base64
 from io import BytesIO
@@ -10,13 +10,10 @@ import cv2
 import face_recognition
 import boto3
 import os
-import requests # <-- Importe a nova biblioteca
+import requests
 
-# --- CONFIGURAÇÕES E LÓGICA DE RECONHECIMENTO (sem mudanças) ---
-
-# Coloque suas credenciais e configurações da AWS aqui
 AWS_ACCESS_KEY_ID = 'ASIA6ODU7GZ6G7LNWEHD'
-AWS_SECRET_ACCESS_KEY = 'JOWT1oKq5xrwVQkYoR/PCwQL8j2/7MvFQC9GB0EN'
+AWS_SECRET_ACCESS_KEY = 'JOWT1oKq5xrwVQkYoR/PCwQL8j2/7MvFQC9GB0EN       '
 AWS_SESSION_TOKEN = 'IQoJb3JpZ2luX2VjEMP//////////wEaCXVzLXdlc3QtMiJHMEUCIQCwBzfKTS0jeT5P+JiwhBzT2NvdKEtQkRcXzmYFmseClAIgE3z6VEj/ASkWtCCBBoSGXejrHLGvF36ih7nx/8x6tC8quAIIvP//////////ARAAGgw5OTIzODI3NjA1NzIiDGaVmezjMXTAQDLkLCqMAjdswJFaEthfo3t/lWK57VO/mCr/iyNGxAtxgNwfJEnEfPHkjpCln/jAhH53WJiISLxCXgPpkxNje09Ul0wi8+5FnGofBwPrcPXiVB/V/JNb7h+d2tONnbd9Oa6G/J15tt3Ddj9r7SvDZxWgu5KF0nly7CwDdSD7ahrpWdA26Pb3AV26MWFR5W80LqjJ/rW+wNJuC9kT3Q/ujc7VUtXh+dRycT14z2vfENxR1rCl/OG5yfA1HrTo+0CleIdPWlMB77qbL9GgVyYERCC83CTqQWwCs50tvj4Z3/Yga+pTB2YuA047Ha0t/dhbPF+QcDDmErCVEzUJEYTDwuNB2A7gVWQ5rlb/eD/xFHypYVkwn9aJwwY6nQEa7C2Dudf10+cbV3moCo72XBfF5+SHsx6EsOKJzCJ/XTNipSliP/KIkt8uAsxt4mR7sBmb1f0jt8SVHMXvV60bB+T7N/GBwZXMHgguIoKCCIMwZLZaekLKvAhUUyM83Z+wNbfGM2upM3pzQqJI0Le0CTXrY6YofBqfCVtvZLQMd8aHbDTD2to5Di63PFM8NU7lwAOcHY4g3OAMwbAd'
 AWS_REGION = 'us-east-1'
 S3_BUCKET_NAME = 'visaocomputacional-senai'
@@ -26,7 +23,6 @@ known_face_names = []
 
 def load_known_faces():
     global known_face_encodings, known_face_names
-    # ... (o código da função load_known_faces continua exatamente o mesmo)
     print("➡️  Carregando rostos conhecidos do S3...")
     
     try:
@@ -43,7 +39,7 @@ def load_known_faces():
             for prefix in page.get('CommonPrefixes', []):
                 person_folder_prefix = prefix.get('Prefix')
                 person_name = person_folder_prefix.replace(main_folder_prefix, '').strip('/')
-                print(f"  -> Processando pasta de: {person_name}")
+                print(f"Processando pasta de: {person_name}")
                 
                 person_encodings = []
                 image_files = s3_client.list_objects_v2(Bucket=S3_BUCKET_NAME, Prefix=person_folder_prefix)
@@ -62,14 +58,14 @@ def load_known_faces():
                     average_encoding = np.mean(person_encodings, axis=0)
                     known_face_encodings.append(average_encoding)
                     known_face_names.append(person_name)
-                    print(f"    ✔  Assinatura média para {person_name} criada.")
+                    print(f"Assinatura média para {person_name} criada.")
         
         if not known_face_names:
-            print("⚠️ Nenhuma face encontrada. O reconhecimento não funcionará.")
+            print("Nenhuma face encontrada. O reconhecimento não funcionará.")
         else:
-            print(f"✅ {len(known_face_names)} pessoas carregadas: {', '.join(known_face_names)}")
+            print(f"{len(known_face_names)} pessoas carregadas: {', '.join(known_face_names)}")
     except Exception as e:
-        print(f"❌ ERRO ao carregar faces do S3: {e}")
+        print(f"ERRO ao carregar faces do S3: {e}")
 
 
 def process_frame(image_data_url):
