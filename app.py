@@ -12,16 +12,20 @@ import boto3
 import os
 import requests
 
-AWS_ACCESS_KEY_ID = 'ASIA6ODU7GZ6G7LNWEHD'
-AWS_SECRET_ACCESS_KEY = 'JOWT1oKq5xrwVQkYoR/PCwQL8j2/7MvFQC9GB0EN       '
-AWS_SESSION_TOKEN = 'IQoJb3JpZ2luX2VjEMP//////////wEaCXVzLXdlc3QtMiJHMEUCIQCwBzfKTS0jeT5P+JiwhBzT2NvdKEtQkRcXzmYFmseClAIgE3z6VEj/ASkWtCCBBoSGXejrHLGvF36ih7nx/8x6tC8quAIIvP//////////ARAAGgw5OTIzODI3NjA1NzIiDGaVmezjMXTAQDLkLCqMAjdswJFaEthfo3t/lWK57VO/mCr/iyNGxAtxgNwfJEnEfPHkjpCln/jAhH53WJiISLxCXgPpkxNje09Ul0wi8+5FnGofBwPrcPXiVB/V/JNb7h+d2tONnbd9Oa6G/J15tt3Ddj9r7SvDZxWgu5KF0nly7CwDdSD7ahrpWdA26Pb3AV26MWFR5W80LqjJ/rW+wNJuC9kT3Q/ujc7VUtXh+dRycT14z2vfENxR1rCl/OG5yfA1HrTo+0CleIdPWlMB77qbL9GgVyYERCC83CTqQWwCs50tvj4Z3/Yga+pTB2YuA047Ha0t/dhbPF+QcDDmErCVEzUJEYTDwuNB2A7gVWQ5rlb/eD/xFHypYVkwn9aJwwY6nQEa7C2Dudf10+cbV3moCo72XBfF5+SHsx6EsOKJzCJ/XTNipSliP/KIkt8uAsxt4mR7sBmb1f0jt8SVHMXvV60bB+T7N/GBwZXMHgguIoKCCIMwZLZaekLKvAhUUyM83Z+wNbfGM2upM3pzQqJI0Le0CTXrY6YofBqfCVtvZLQMd8aHbDTD2to5Di63PFM8NU7lwAOcHY4g3OAMwbAd'
+AWS_ACCESS_KEY_ID = 'ASIA6ODU7GZ6GMNKSVMY' # Lembre-se de usar credenciais válidas
+AWS_SECRET_ACCESS_KEY = '4VoAHlTV74bQ0EOQK04HC1K5zifoR7ebWYzmQyE3'
+AWS_SESSION_TOKEN = 'IQoJb3JpZ2luX2VjEC0aCXVzLXdlc3QtMiJHMEUCIQDfpkjMl1eg0taKMrQMYBjlxVyKCY2HVlQ0JeF1ATApQQIgXRVXywHQNeL/2PkpTeL498/j1pVXRR6wLraA1ZyOK+0qrwIIRhAAGgw5OTIzODI3NjA1NzIiDDJGVMDKUfia4xDPPCqMAn/r5+n+8A0z/DE5X9vdVcT+dG9G0wpj83WN9FTIagzxXZfUb2Rf28J7S3euN2zffNSzQAf6T34nNc5THVWVqHITKsNyxvRwuJ9Lnc6bYHC2ZPxoReZ9ssVoQE2wxHCUDiwRGRqGw4QLKE94ev59zpqOCtkO4rdehkeWkyCjt40mM/9sUC4PiJGVgLpLXUzK4K8Kf4l1CUUjSnimcFHbptV1xTVXJ/sPiFQSh6hzmZkEVwtejWyflNz9e15dajHiVOCwFFH8CmWJ1pnw0oZ6YNgz61+7ZNzWQ/q4RMqqTC2cF315utD6w+PGSsUhb3xpxnGRpW3kkjuk1zUIQGMXNIPwNj7fOp8uHm1OVl4w1pfZwwY6nQEgFyFXDDi6fKF7c28gzHDc6rAk8lk/kAwFSEdqaSDcXdO6wdRbnRraRWaJUZZPb2FPFTSvjYI8hmq7Z4I4L+gnQ5hn4AxMuhHXOTMWWhMa+YmQrrxrE/9CQ/W0UGZ1QQBL33k6O81shnYDQV0QqWehHzRgRchQ4B90WI+Cej00O6WxhWpmtBQbtnHINhzeGrJBn5LoEgBc2xJ66Xw1'
 AWS_REGION = 'us-east-1'
 S3_BUCKET_NAME = 'visaocomputacional-senai'
 
 known_face_encodings = []
 known_face_names = []
 
+### NOVO: Conjunto para armazenar nomes únicos de pessoas já reconhecidas ###
+recognized_person_set = set()
+
 def load_known_faces():
+    # ... (esta função continua exatamente a mesma, não precisa mudar)
     global known_face_encodings, known_face_names
     print("➡️  Carregando rostos conhecidos do S3...")
     
@@ -69,14 +73,14 @@ def load_known_faces():
 
 
 def process_frame(image_data_url):
-    # ... (o código da função process_frame continua exatamente o mesmo)
+    # ... (esta função continua exatamente a mesma, não precisa mudar)
     header, encoded = image_data_url.split(",", 1)
     image_data = base64.b64decode(encoded)
     image = Image.open(BytesIO(image_data))
     frame = np.array(image)
     rgb_frame = frame
     
-    face_locations = face_recognition.face_locations(rgb_frame, model="hog") # 'hog' é mais rápido
+    face_locations = face_recognition.face_locations(rgb_frame, model="hog")
     face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
 
     name = "Desconhecido"
@@ -100,46 +104,55 @@ socketio = SocketIO(app)
 def index():
     return render_template('index.html')
 
+### NOVO: Rota para a página que exibirá a lista de nomes ###
+@app.route('/list')
+def list_page():
+    # Passa a lista atual de nomes (já ordenada) para o template
+    # Assim, a página já carrega com os nomes que foram reconhecidos até o momento.
+    current_names = sorted(list(recognized_person_set))
+    return render_template('list.html', names=current_names)
+
 @socketio.on('image')
 def handle_image(image_data_url):
     recognized_name = process_frame(image_data_url)
-    # Agora, em vez de apenas enviar o nome, preparamos para a narração
     socketio.emit('response', {'name': recognized_name})
+    
+    ### NOVO: Lógica para atualizar e transmitir a lista de nomes únicos ###
+    # Verifica se o nome é válido e se ainda não foi adicionado à lista
+    if recognized_name != "Desconhecido" and recognized_name not in recognized_person_set:
+        print(f"✔️  Nova pessoa adicionada à lista: {recognized_name}")
+        recognized_person_set.add(recognized_name)
+        
+        # Converte o set para uma lista ordenada
+        sorted_list = sorted(list(recognized_person_set))
+        
+        # Emite um evento para TODOS os clientes com a lista atualizada
+        # Qualquer página (como a list.html) que estiver escutando este evento, irá se atualizar.
+        socketio.emit('update_list', {'names': sorted_list})
 
-### --- NOVO ENDPOINT PARA GERAR A FALA --- ###
+
 @app.route('/get-speech', methods=['POST'])
 def get_speech():
-    """Recebe um texto, busca o áudio no Google TTS e retorna como base64."""
+    # ... (esta função continua exatamente a mesma, não precisa mudar)
     text_to_speak = request.json.get('text')
     if not text_to_speak:
         return jsonify({'error': 'No text provided'}), 400
 
     try:
-        # URL da API não-oficial do Google Translate TTS
         url = "https://translate.google.com/translate_tts"
-        params = {
-            'ie': 'UTF-8',
-            'q': text_to_speak,
-            'tl': 'pt-BR',
-            'client': 'tw-ob' # Parâmetro necessário para a API funcionar
-        }
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36'
-        }
-        
+        params = {'ie': 'UTF-8', 'q': text_to_speak, 'tl': 'pt-BR', 'client': 'tw-ob'}
+        headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get(url, params=params, headers=headers)
-        response.raise_for_status() # Lança um erro se a requisição falhar
-        
-        # Codifica o conteúdo do áudio (bytes) em base64 (string)
+        response.raise_for_status()
         audio_base64 = base64.b64encode(response.content).decode('utf-8')
-        
         return jsonify({'audio': audio_base64})
-        
     except requests.exceptions.RequestException as e:
         print(f"Erro ao buscar áudio do Google: {e}")
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     load_known_faces()
-    print("🚀 Servidor pronto! Acesse http://127.0.0.1:5000 no seu navegador.")
+    print("🚀 Servidor pronto!")
+    print("   - Página da Webcam: http://127.0.0.1:5000")
+    print("   - Página da Lista:  http://127.0.0.1:5000/list")
     socketio.run(app, host='0.0.0.0', port=5000)
