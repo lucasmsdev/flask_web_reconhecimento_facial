@@ -1,4 +1,4 @@
-<!-- templates/index.html MODIFICADO -->
+<!-- templates/index.html - VERSÃO FINAL CORRIGIDA -->
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -6,118 +6,131 @@
     <title>Reconhecimento Facial com Narração</title>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <style>
-        /* (o CSS pode continuar o mesmo) */
-        body { font-family: sans-serif; text-align: center; background-color: #f0f0f0; }
-        #container { margin-top: 20px; }
-        video { border: 3px solid #333; transform: scaleX(-1); border-radius: 8px; }
-        h1 { color: #333; }
-        #recognized-name { 
-            margin-top: 20px; font-size: 2em; font-weight: bold; color: #007BFF;
-            min-height: 50px; transition: color 0.3s;
+        body { 
+            font-family: sans-serif; 
+            text-align: center; 
+            background-color: #f0f0f0; 
+            margin: 0;
+            padding: 0;
         }
-        #recognized-name.desconhecido { color: #dc3545; }
+        #container { 
+            margin-top: 20px; 
+        }
+        video { 
+            border: 3px solid #333; 
+            transform: scaleX(-1); /* Espelha o vídeo para o usuário se ver corretamente */
+            border-radius: 8px; 
+            background-color: #000;
+        }
+        h1 { 
+            color: #333; 
+        }
+        #recognized-name { 
+            margin-top: 20px; 
+            font-size: 2.5em; 
+            font-weight: bold; 
+            color: #007BFF;
+            min-height: 60px; /* Garante que a altura não mude */
+            transition: color 0.3s ease-in-out;
+            padding: 10px;
+        }
+        #recognized-name.indefinido { 
+            color: #dc3545; /* Vermelho para 'Desconhecido' ou 'Aproxime-se' */
+        }
     </style>
 </head>
 <body>
-    <h1>Reconhecimento Facial Formatura Senai</h1>
+    <h1>Reconhecimento Facial</h1>
     <div id="container">
-        <video id="video" width="800" height="600" autoplay playsinline></video>
+        <video id="video" width="800" height="600" autoplay playsinline muted></video>
+        <!-- A propriedade 'muted' no vídeo é importante para que o autoplay funcione em mais navegadores -->
     </div>
-    <div id="recognized-name">Aguardando permissão da webcam...</div>
+    <div id="recognized-name" class="indefinido">Aguardando permissão da webcam...</div>
 
     <script type="text/javascript">
         const socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
         const video = document.getElementById('video');
         const nameElement = document.getElementById('recognized-name');
 
-        let lastRecognizedName = null;
-        let isSpeaking = false; // Flag para não tocar áudios sobrepostos
+        socket.on('connect', () => console.log('✅ Conectado ao servidor WebSocket!'));
+        socket.on('disconnect', () => console.log('❌ Desconectado do servidor WebSocket.'));
 
-        // --- NOVA LÓGICA DE NARRAÇÃO ---
-        async function speak(text) {
-            if (isSpeaking) return; // Se já estiver falando, não faz nada
-            isSpeaking = true;
-
-            try {
-                // Faz uma requisição POST para o nosso backend
-                const response = await fetch('/get-speech', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: text })
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Erro do servidor: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                
-                // Cria um objeto de Áudio e toca o áudio base64 recebido
-                const audio = new Audio(`data:audio/mpeg;base64,${data.audio}`);
-                audio.play();
-
-                // Quando o áudio terminar de tocar, reseta a flag
-                audio.onended = () => {
-                    isSpeaking = false;
-                };
-
-            } catch (error) {
-                console.error("Erro ao obter e tocar áudio:", error);
-                isSpeaking = false; // Reseta a flag em caso de erro
-            }
-        }
-        
-        // --- LÓGICA DE WEBSOCKETS MODIFICADA ---
-        socket.on('connect', () => console.log('✅ Conectado ao servidor!'));
-        
+        // Listener para atualizar o NOME exibido na tela
         socket.on('response', (data) => {
             const currentName = data.name;
             nameElement.textContent = currentName;
 
-            if (currentName === "Desconhecido") {
-                nameElement.classList.add('desconhecido');
-                lastRecognizedName = null;
+            // Atualiza o estilo visual com base no nome
+            if (currentName === "Desconhecido" || currentName === "Aproxime-se") {
+                nameElement.classList.add('indefinido');
             } else {
-                nameElement.classList.remove('desconhecido');
-                // Se o nome é válido e diferente do último, manda falar
-                if (currentName !== lastRecognizedName) {
-                    speak(currentName);
-                    lastRecognizedName = currentName;
-                }
+                nameElement.classList.remove('indefinido');
             }
         });
 
-        // --- ACESSO À WEBCAM E ENVIO DE FRAMES (sem mudanças) ---
+        // Listener para tocar o ÁUDIO. Esta é a versão corrigida.
+        socket.on('play_audio', (data) => {
+            if (data.url) {
+                console.log("▶️ Recebido comando para tocar áudio. Carregando...");
+                
+                // 1. Cria o objeto de áudio
+                const audio = new Audio(data.url);
+                
+                // 2. Adiciona um listener para esperar o áudio estar pronto para tocar do início ao fim
+                audio.addEventListener('canplaythrough', () => {
+                    console.log("✅ Áudio pronto. Tocando agora.");
+                    // 3. Toca o áudio somente quando estiver pronto
+                    audio.play().catch(e => {
+                        console.error("Erro ao iniciar a reprodução do áudio (o navegador pode ter bloqueado):", e);
+                    });
+                });
+
+                // Opcional, mas recomendado: Lidar com erros de carregamento
+                audio.addEventListener('error', (e) => {
+                    console.error("❌ Falha ao carregar o arquivo de áudio da URL fornecida:", e);
+                });
+            }
+        });
+
+        // Função para iniciar a webcam e o envio de frames
         async function startWebcam() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                 video.srcObject = stream;
-                nameElement.textContent = "Aguardando...";
-                
-                setInterval(() => {
-                    if (video.readyState >= 3) sendFrame();
-                }, 800);
-
+                video.onloadedmetadata = () => {
+                    video.play();
+                    nameElement.textContent = "Aguardando...";
+                    // Inicia o envio de frames somente depois que o vídeo estiver tocando
+                    setInterval(sendFrame, 800); // Intervalo de 800ms
+                };
             } catch (error) {
                 console.error("❌ Erro ao acessar a webcam: ", error);
                 nameElement.textContent = "Erro: Webcam não encontrada ou permissão negada.";
             }
         }
         
+        // Função que desenha o frame em um canvas e envia para o backend
         function sendFrame() {
+            // Garante que o vídeo tenha um tamanho válido para não enviar frames vazios
+            if (video.readyState < 3 || video.videoWidth === 0) {
+                return;
+            }
+
             const canvas = document.createElement('canvas');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             const context = canvas.getContext('2d');
-            context.translate(canvas.width, 0);
-            context.scale(-1, 1);
+            
+            // Desenha o vídeo no canvas
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // Converte o canvas para uma imagem base64 e envia via WebSocket
             const data = canvas.toDataURL('image/jpeg', 0.8);
             socket.emit('image', data);
         }
 
-        // --- INICIA TUDO ---
+        // Inicia todo o processo quando a página carregar
         startWebcam();
     </script>
 </body>
-</html>
+</html>```
