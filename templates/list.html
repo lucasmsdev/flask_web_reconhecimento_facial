@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pessoas Reconhecidas</title>
-    <!-- Incluindo a biblioteca do Socket.IO -->
+    <title>Nossos queridos alunos</title>
     <script src="https://cdn.socket.io/4.5.2/socket.io.min.js"></script>
     <style>
         body {
@@ -19,7 +18,7 @@
             width: 100%; max-width: 90vw; /* Ocupa mais espaço na tela */
             text-align: center;
         }
-        h1 { font-size: 2rem; color: #0d6efd; margin-bottom: 1.5rem; }
+        h1 { font-size: 2rem; color: #e80414; margin-bottom: 1.5rem; }
 
         /* --- CSS MODIFICADO --- */
 
@@ -38,7 +37,7 @@
 
         /* 2. O estilo de cada nome individual */
         .name-tag {
-            background-color: #0d6efd; /* Cor principal azul */
+            background-color: #e80414; /* Cor principal azul */
             color: white;              /* Texto branco */
             padding: 8px 16px;         /* Espaçamento interno */
             border-radius: 20px;       /* Bordas arredondadas (efeito "pílula") */
@@ -58,7 +57,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>Pessoas Reconhecidas na Sessão</h1>
+        <h1>Formandos</h1>
         
         <!-- ESTRUTURA HTML MODIFICADA -->
         <div id="name-container" class="name-container">
@@ -87,17 +86,17 @@
             nameContainer.innerHTML = '';
 
             // Recria as tags com os novos nomes recebidos
-            if (data.names.length === 0) {
-                statusElement.textContent = "Ainda nenhuma pessoa reconhecida.";
-            } else {
-                statusElement.textContent = `Total: ${data.names.length} pessoa(s) reconhecida(s).`;
-                data.names.forEach(name => {
-                    const nameTag = document.createElement('div');
-                    nameTag.className = 'name-tag'; // Aplica a classe de estilo
-                    nameTag.textContent = name;
-                    nameContainer.appendChild(nameTag);
-                });
-            }
+                if (data.names.length === 0) {
+                    statusElement.textContent = "Ainda nenhuma pessoa reconhecida.";
+                } else {
+                    statusElement.textContent = `Total: ${data.names.length} pessoa(s) reconhecida(s).`; 
+                    data.names.forEach(name => {
+                        const nameTag = document.createElement('div');
+                        nameTag.className = 'name-tag';
+                        nameTag.textContent = name;
+                        nameContainer.appendChild(nameTag);
+                    });
+                }
         });
 
         socket.on('connect', function() {
